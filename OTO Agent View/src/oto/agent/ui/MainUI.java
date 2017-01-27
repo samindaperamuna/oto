@@ -2,46 +2,27 @@ package oto.agent.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.EventQueue;
 import java.awt.Font;
 import java.awt.GridLayout;
 
+import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.EtchedBorder;
 
-public class Main extends JFrame {
+public class MainUI extends JFrame {
 
 	private JPanel contentPane;
 	private JPanel headerPanel;
+	private JEditorPane chatEditorPane;
 
-	/**
-	 * Application event queue;
-	 * 
-	 * @param args
-	 */
-	public static void main(String[] args) {
-		EventQueue.invokeLater(() -> {
-			try {
-				Main frame = new Main();
-				frame.setVisible(true);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		});
-	}
-
-	/**
-	 * Window constructor.
-	 */
-	public Main() {
+	public MainUI() {
 		setMinimumSize(new Dimension(800, 600));
 		setPreferredSize(new Dimension(800, 600));
 		setTitle("Test Bench");
@@ -68,9 +49,10 @@ public class Main extends JFrame {
 		scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 		contentPane.add(scrollPane, BorderLayout.CENTER);
 
-		JTextArea chatTextArea = new JTextArea();
-		chatTextArea.setEditable(false);
-		scrollPane.setViewportView(chatTextArea);
+		chatEditorPane = new JEditorPane();
+		chatEditorPane.setEditable(false);
+		chatEditorPane.setContentType("text/html");
+		scrollPane.setViewportView(chatEditorPane);
 
 		JPanel footerPanel = new JPanel();
 		footerPanel.setBorder(new EtchedBorder(EtchedBorder.LOWERED, null, null));
