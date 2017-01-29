@@ -4,25 +4,48 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
+import java.io.IOException;
 
 import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.EtchedBorder;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.html.HTMLDocument;
+import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.html.StyleSheet;
+import javax.swing.ScrollPaneConstants;
 
 public class MainUI extends JFrame {
-
+	private HTMLEditorKit customerEditorKit, agentEditorKit;
+	private HTMLDocument customerHtmlDocument, agentHtmlDocument;
 	private JPanel contentPane;
 	private JPanel headerPanel;
-	private JEditorPane chatEditorPane;
+	private JEditorPane customerEditorPane;
+	private JEditorPane agentEditorPane;
 
 	public MainUI() {
+		this.customerEditorKit = new HTMLEditorKit();
+		this.agentEditorKit = new HTMLEditorKit();
+		StyleSheet styleSheet = new StyleSheet();
+
+		styleSheet.addRule(".customer { color: blue; }");
+		styleSheet.addRule(".agent { color: red; }");
+
+		this.customerEditorKit.setStyleSheet(styleSheet);
+		this.agentEditorKit.setStyleSheet(styleSheet);
+		this.customerHtmlDocument = (HTMLDocument) customerEditorKit.createDefaultDocument();
+		this.agentHtmlDocument = (HTMLDocument) agentEditorKit.createDefaultDocument();
+
+		initializeUI();
+	}
+
+	private void initializeUI() {
 		setMinimumSize(new Dimension(800, 600));
 		setPreferredSize(new Dimension(800, 600));
 		setTitle("Test Bench");
@@ -42,17 +65,39 @@ public class MainUI extends JFrame {
 		headerPanel.add(customerLabel);
 
 		JLabel agentLabel = new JLabel("Agent");
-		agentLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+		agentLabel.setHorizontalAlignment(SwingConstants.LEFT);
 		headerPanel.add(agentLabel);
 
-		JScrollPane scrollPane = new JScrollPane();
-		scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-		contentPane.add(scrollPane, BorderLayout.CENTER);
+		JPanel bodyPanel = new JPanel();
+		contentPane.add(bodyPanel, BorderLayout.CENTER);
+		bodyPanel.setLayout(new GridLayout(1, 2, 0, 0));
 
-		chatEditorPane = new JEditorPane();
-		chatEditorPane.setEditable(false);
-		chatEditorPane.setContentType("text/html");
-		scrollPane.setViewportView(chatEditorPane);
+		JScrollPane customerScrollPane = new JScrollPane();
+		customerScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		bodyPanel.add(customerScrollPane);
+
+		customerEditorPane = new JEditorPane();
+		customerEditorPane.setEditorKit(customerEditorKit);
+		customerEditorPane.setDocument(customerHtmlDocument);
+		customerEditorPane.setText("<html><head></head><body></body></html>");
+		customerEditorPane.setPreferredSize(new Dimension(30, 30));
+		customerEditorPane.setMinimumSize(new Dimension(30, 30));
+		customerEditorPane.setEditable(false);
+		customerScrollPane.setViewportView(customerEditorPane);
+
+		JScrollPane agentScrollPane = new JScrollPane();
+		agentScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		bodyPanel.add(agentScrollPane);
+
+		agentEditorPane = new JEditorPane();
+		agentEditorPane.setEditorKit(agentEditorKit);
+		agentEditorPane.setDocument(agentHtmlDocument);
+		agentEditorPane.setText("<html><head></head><body></body></html>");
+		agentEditorPane.setMinimumSize(new Dimension(30, 30));
+		agentEditorPane.setPreferredSize(new Dimension(30, 30));
+		agentEditorPane.setEditable(false);
+
+		agentScrollPane.setViewportView(agentEditorPane);
 
 		JPanel footerPanel = new JPanel();
 		footerPanel.setBorder(new EtchedBorder(EtchedBorder.LOWERED, null, null));
@@ -68,4 +113,47 @@ public class MainUI extends JFrame {
 		this.setLocationRelativeTo(null);
 	}
 
+	/**
+	 * Display the customer message in chat box.
+	 * 
+	 * @param message
+	 * @throws IOException
+	 * @throws BadLocationException
+	 */
+	public void displayCustomerMessage(String message) throws BadLocationException, IOException {
+		HTMLDocument doc = (HTMLDocument) customerEditorPane.getDocument();
+		doc.insertAfterEnd(doc.getCharacterElement(doc.getLength()), createHTMLMessage(message, "left", "customer"));
+		doc.insertAfterEnd(doc.getCharacterElement(doc.getLength()), "<br>");
+	}
+
+	/**
+	 * Display the message from the agent in the chat box.
+	 * 
+	 * @param message
+	 * @throws IOException
+	 * @throws BadLocationException
+	 */
+	public void displayAgentMessage(String message) throws BadLocationException, IOException {
+		HTMLDocument doc = (HTMLDocument) agentEditorPane.getDocument();
+		doc.insertAfterEnd(doc.getCharacterElement(doc.getLength()), createHTMLMessage(message, "right", "agent"));
+		doc.insertAfterEnd(doc.getCharacterElement(doc.getLength()), "<br>");
+	}
+
+	/**
+	 * Create the HTML formatted string.
+	 * 
+	 * @param color
+	 * @param username
+	 * @param message
+	 * @return
+	 */
+	private String createHTMLMessage(String message, String align, String styleClasses) {
+		StringBuilder sb = new StringBuilder();
+
+		sb.append("<p class='" + styleClasses + "'>");
+		sb.append(message);
+		sb.append("</p>");
+
+		return sb.toString();
+	}
 }
