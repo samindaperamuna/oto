@@ -3,4 +3,4 @@ This project comprises of three modules. The current implementation will be focu
 ## Agent View
 This module is now connected to the "Voice Stream Manager".
 ## Voice Stream Manager
-To run a standalone version of the module change the settings accordingly on your property file and run the TwilioUtilityTest.
+To run a standalone version of the module change the settings accordingly on your property file and run the "TwilioUtilityTest".
