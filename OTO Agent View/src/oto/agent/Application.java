@@ -3,21 +3,30 @@ package oto.agent;
 import java.awt.EventQueue;
 
 import oto.agent.ui.MainUI;
+import oto.voice.TwilioUtility;
 
 public class Application {
+
+	private static MainUI mainUI;
 
 	public static void main(String[] args) {
 		EventQueue.invokeLater(() -> {
 			try {
-				MainUI frame = new MainUI();
-				frame.setVisible(true);
-				frame.displayCustomerMessage("<b>[06:20]</b> Hello There !");
-				frame.displayAgentMessage("<b>[06:21]</b>  How Are you?");
-				frame.displayCustomerMessage("<b>[06:22]</b> I am fine thank you");
-				frame.displayAgentMessage("<b>[06:23]</b> Good");
+				mainUI = new MainUI();
+				mainUI.setVisible(true);
+
+				initiateVSM();
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		});
+	}
+
+	/**
+	 * Start a new instance of the Voice Stream Manager.
+	 */
+	private static void initiateVSM() {
+		TwilioUtility tu = new TwilioUtility();
+		tu.registerObserver(mainUI);
 	}
 }

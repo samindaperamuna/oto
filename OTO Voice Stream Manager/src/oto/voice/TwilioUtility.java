@@ -7,11 +7,15 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import com.twilio.Twilio;
 import com.twilio.twiml.Dial;
+import com.twilio.twiml.Method;
 import com.twilio.twiml.Number;
+import com.twilio.twiml.Redirect;
 import com.twilio.twiml.Say;
 import com.twilio.twiml.VoiceResponse;
 
@@ -27,6 +31,8 @@ public class TwilioUtility {
 	private String callerId;
 	private String ipAddress;
 	private int port;
+
+	private List<MessageObserver> messageObservers = new ArrayList<>();
 
 	public TwilioUtility() {
 		Path path = Paths.get(PROPERTY_FILE);
@@ -66,9 +72,21 @@ public class TwilioUtility {
 		return authToken;
 	}
 
+	/**
+	 * Register a message Observer which watches for changes in twilio requests/
+	 * responses.
+	 * 
+	 * @param observer
+	 */
+	public void registerObserver(MessageObserver observer) {
+		this.messageObservers.add(observer);
+	}
+
 	private class TwilioServer {
 
 		private final static String LISTEN_PATH = "/voice";
+		private final static String CALL_PATH = "/call";
+		private final static String END_PATH = "/end";
 		private String agentNumber;
 		private String callerId;
 		private String ipAddress;
@@ -100,24 +118,63 @@ public class TwilioUtility {
 		 * Listen to incoming calls.
 		 */
 		private void listen() {
-			Say voiceMessage = new Say.Builder("Please bare with us while we connect you to the agent.").build();
-			Say failMessage = new Say.Builder("The call failed, or the remote party hung up. Goodbye.").build();
-			Number agentNumber = new Number.Builder(this.agentNumber).build();
-			Dial dial = new Dial.Builder().callerId(this.callerId).number(agentNumber).build();
-
-			VoiceResponse voiceResponse = new VoiceResponse.Builder()
-					.say(voiceMessage)
-					.dial(dial)
-					.say(failMessage)
-					.build();
-
+			// Listen for the call.
 			Spark.post(LISTEN_PATH, "application/x-www-form-urlencoded", (request, response) -> {
-				System.out.println("Sending the TwiML");
+				Say voiceMessage = new Say.Builder("Please bare with us while we connect you to the agent.").build();
+				Redirect redirect = new Redirect.Builder().url(CALL_PATH).method(Method.POST).build();
+				VoiceResponse voiceResponse = new VoiceResponse.Builder().say(voiceMessage).redirect(redirect).build();
+
+				notifyObservers(new Notification(MessageSource.CUSTOMER, "Ringing ..."));
+				notifyObservers(new Notification(MessageSource.SYSTEM, "Customer connected ..."));
+
+				System.out.println("Customer call received ...");
 				System.out.println(voiceResponse.toXml().toString());
 
 				response.header("Content-Type", "text/xml");
 				return voiceResponse.toXml();
 			});
+
+			// Dial the agent
+			Spark.post(CALL_PATH, "application/x-www-form-urlencoded", (request, response) -> {
+				Say failMessage = new Say.Builder("The call failed, or the remote party hung up. Goodbye.").build();
+
+				Number agentNumber = new Number.Builder(this.agentNumber).build();
+				Dial dial = new Dial.Builder().action(END_PATH).method(Method.POST).callerId(this.callerId)
+						.number(agentNumber).build();
+
+				VoiceResponse voiceResponse = new VoiceResponse.Builder().dial(dial).say(failMessage).build();
+
+				notifyObservers(new Notification(MessageSource.AGENT, "Ringing ..."));
+
+				response.header("Content-Type", "text/xml");
+				return voiceResponse.toXml();
+			});
+
+			// Upon end call.
+			Spark.post(END_PATH, "application/x-www-form-urlencoded", (request, response) -> {
+				VoiceResponse voiceResponse = new VoiceResponse.Builder().build();
+
+				notifyObservers(new Notification(MessageSource.CUSTOMER, "Hangup ..."));
+				notifyObservers(new Notification(MessageSource.AGENT, "Call End ..."));
+
+				String callStatus = request.queryParams("DialCallStatus");
+
+				notifyObservers(new Notification(MessageSource.SYSTEM, "Call status : " + callStatus));
+
+				response.header("Content-Type", "text/xml");
+				return voiceResponse.toXml();
+			});
+		}
+
+		/**
+		 * Pass changes to the observers.
+		 * 
+		 * @param notification
+		 */
+		private void notifyObservers(Notification notification) {
+			for (MessageObserver observer : messageObservers) {
+				observer.handleNotification(notification);
+			}
 		}
 	}
 }

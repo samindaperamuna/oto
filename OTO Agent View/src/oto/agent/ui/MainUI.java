@@ -5,12 +5,16 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -19,15 +23,18 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
-import javax.swing.ScrollPaneConstants;
 
-public class MainUI extends JFrame {
+import oto.voice.MessageObserver;
+import oto.voice.Notification;
+
+public class MainUI extends JFrame implements MessageObserver {
 	private HTMLEditorKit customerEditorKit, agentEditorKit;
 	private HTMLDocument customerHtmlDocument, agentHtmlDocument;
 	private JPanel contentPane;
 	private JPanel headerPanel;
 	private JEditorPane customerEditorPane;
 	private JEditorPane agentEditorPane;
+	private JLabel statusLabel;
 
 	public MainUI() {
 		this.customerEditorKit = new HTMLEditorKit();
@@ -105,7 +112,7 @@ public class MainUI extends JFrame {
 		contentPane.add(footerPanel, BorderLayout.SOUTH);
 		footerPanel.setLayout(new GridLayout(1, 2, 0, 0));
 
-		JLabel statusLabel = new JLabel("Ready");
+		statusLabel = new JLabel("Ready");
 		statusLabel.setFont(new Font("Dialog", Font.BOLD, 10));
 		footerPanel.add(statusLabel);
 
@@ -148,12 +155,36 @@ public class MainUI extends JFrame {
 	 * @return
 	 */
 	private String createHTMLMessage(String message, String align, String styleClasses) {
+		Date now = new Date();
+		SimpleDateFormat df = new SimpleDateFormat("HH:mm:ss");
 		StringBuilder sb = new StringBuilder();
 
 		sb.append("<p class='" + styleClasses + "'>");
-		sb.append(message);
+		sb.append("<b>[" + df.format(now) + "]</b> " + message);
 		sb.append("</p>");
 
 		return sb.toString();
+	}
+
+	@Override
+	public void handleNotification(Notification notification) {
+		String message = notification.getMessage();
+
+		try {
+			switch (notification.getSource()) {
+			case CUSTOMER:
+				displayCustomerMessage(message);
+				break;
+			case AGENT:
+				displayAgentMessage(message);
+				break;
+			case SYSTEM:
+				this.statusLabel.setText(message);
+				break;
+			}
+		} catch (Exception e) {
+			JOptionPane.showMessageDialog(this, "Internal error occurred. " + e.getLocalizedMessage(),
+					"Cannot create output", JOptionPane.ERROR_MESSAGE);
+		}
 	}
 }
