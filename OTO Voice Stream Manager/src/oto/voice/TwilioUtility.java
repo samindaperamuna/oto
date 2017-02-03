@@ -13,6 +13,7 @@ import java.util.Properties;
 
 import com.twilio.Twilio;
 import com.twilio.twiml.Dial;
+import com.twilio.twiml.Event;
 import com.twilio.twiml.Method;
 import com.twilio.twiml.Number;
 import com.twilio.twiml.Redirect;
@@ -30,6 +31,7 @@ public class TwilioUtility {
 	private String agentNumber;
 	private String callerId;
 	private String ipAddress;
+	private String callbackUrl;
 	private int port;
 
 	private List<MessageObserver> messageObservers = new ArrayList<>();
@@ -52,6 +54,7 @@ public class TwilioUtility {
 			this.agentNumber = properties.getProperty("agent_number");
 			this.callerId = properties.getProperty("caller_id");
 			this.ipAddress = properties.getProperty("ip_address");
+			this.callbackUrl = properties.getProperty("callback_url");
 			this.port = Integer.parseInt(properties.getProperty("port"));
 
 		} catch (IOException ex) {
@@ -60,7 +63,8 @@ public class TwilioUtility {
 
 		Twilio.init(accountSID, authToken);
 
-		TwilioServer server = new TwilioServer(this.agentNumber, this.callerId, this.ipAddress, this.port);
+		TwilioServer server = new TwilioServer(this.agentNumber, this.callerId, this.ipAddress, this.callbackUrl,
+				this.port);
 		server.listen();
 	}
 
@@ -86,21 +90,25 @@ public class TwilioUtility {
 
 		private final static String LISTEN_PATH = "/voice";
 		private final static String CALL_PATH = "/call";
+		private final static String EVENT_PATH = "/event";
 		private final static String END_PATH = "/end";
+
 		private String agentNumber;
 		private String callerId;
 		private String ipAddress;
+		private String callbackUrl;
 		private int port;
 
 		/**
 		 * Start the spark Server.
 		 */
-		private TwilioServer(String agentNumber, String callerId, String ipAddress, int port) {
+		private TwilioServer(String agentNumber, String callerId, String ipAddress, String callbackUrl, int port) {
 			System.out.println("Configuring spark server ...");
 
 			this.agentNumber = agentNumber;
 			this.callerId = callerId;
 			this.ipAddress = ipAddress;
+			this.callbackUrl = callbackUrl;
 			this.port = port;
 
 			Spark.ipAddress(this.ipAddress);
@@ -118,13 +126,22 @@ public class TwilioUtility {
 		 * Listen to incoming calls.
 		 */
 		private void listen() {
+			List<Event> statusCallbackEvents = new ArrayList<>();
+
+			for (Event event : Event.values()) {
+				statusCallbackEvents.add(event);
+			}
+
 			// Listen for the call.
 			Spark.post(LISTEN_PATH, "application/x-www-form-urlencoded", (request, response) -> {
 				Say voiceMessage = new Say.Builder("Please bare with us while we connect you to the agent.").build();
 				Redirect redirect = new Redirect.Builder().url(CALL_PATH).method(Method.POST).build();
 				VoiceResponse voiceResponse = new VoiceResponse.Builder().say(voiceMessage).redirect(redirect).build();
 
+				String fromNumber = request.queryParams("From");
+
 				notifyObservers(new Notification(MessageSource.CUSTOMER, "Ringing ..."));
+				notifyObservers(new Notification(MessageSource.CUSTOMER, "Caller ID : " + fromNumber));
 				notifyObservers(new Notification(MessageSource.SYSTEM, "Customer connected ..."));
 
 				System.out.println("Customer call received ...");
@@ -138,13 +155,32 @@ public class TwilioUtility {
 			Spark.post(CALL_PATH, "application/x-www-form-urlencoded", (request, response) -> {
 				Say failMessage = new Say.Builder("The call failed, or the remote party hung up. Goodbye.").build();
 
-				Number agentNumber = new Number.Builder(this.agentNumber).build();
-				Dial dial = new Dial.Builder().action(END_PATH).method(Method.POST).callerId(this.callerId)
-						.number(agentNumber).build();
+				Number agentNumber = new Number.Builder(this.agentNumber).statusCallbackEvents(statusCallbackEvents)
+						.statusCallback(this.callbackUrl).method(Method.POST).build();
+				Dial dial = new Dial.Builder().action(END_PATH).callerId(this.callerId).number(agentNumber).build();
 
 				VoiceResponse voiceResponse = new VoiceResponse.Builder().dial(dial).say(failMessage).build();
 
 				notifyObservers(new Notification(MessageSource.AGENT, "Ringing ..."));
+
+				response.header("Content-Type", "text/xml");
+				return voiceResponse.toXml();
+			});
+
+			// Upon event trigger
+			Spark.post(EVENT_PATH, "application/x-www-form-urlencoded", (request, response) -> {
+				VoiceResponse voiceResponse = new VoiceResponse.Builder().build();
+
+				String callStatus = request.queryParams("CallStatus");
+
+				switch (callStatus) {
+				case "completed":
+					break;
+				default:
+					notifyObservers(new Notification(MessageSource.SYSTEM, "Call status : " + callStatus));
+					notifyObservers(new Notification(MessageSource.CUSTOMER, callStatus));
+					break;
+				}
 
 				response.header("Content-Type", "text/xml");
 				return voiceResponse.toXml();
@@ -157,9 +193,7 @@ public class TwilioUtility {
 				notifyObservers(new Notification(MessageSource.CUSTOMER, "Hangup ..."));
 				notifyObservers(new Notification(MessageSource.AGENT, "Call End ..."));
 
-				String callStatus = request.queryParams("DialCallStatus");
-
-				notifyObservers(new Notification(MessageSource.SYSTEM, "Call status : " + callStatus));
+				notifyObservers(new Notification(MessageSource.SYSTEM, "Call status : completed"));
 
 				response.header("Content-Type", "text/xml");
 				return voiceResponse.toXml();
