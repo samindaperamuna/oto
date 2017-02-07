@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<title>Twilio Client</title>
+<link href="//static0.twilio.com/resources/quickstart/client.css"
+	type="text/css" rel="stylesheet" />
+<!-- <script type="text/javascript" -->
+<!-- 	src="/js/web-audio-recorder/WebAudioRecorder.js"></script> -->
+<script type="text/javascript"
+	src="//media.twiliocdn.com/sdk/js/client/v1.3/twilio.min.js"></script>
+<script type="text/javascript"
+	src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+<script type="text/javascript" th:inline="javascript">
+	var token = [[${token}]];
+	console.log(token);
+</script>
+<script type="text/javascript" src="js/index.js"></script>
+</head>
+<body>
+	<button class="call" onclick="call();">Call</button>
+	<button class="hangup" onclick="hangup();">Hangup</button>
+
+	<div id="log">Loading pigeons...</div>
+</body>
+</html>

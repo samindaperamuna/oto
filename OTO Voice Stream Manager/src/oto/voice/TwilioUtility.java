@@ -8,10 +8,16 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import com.twilio.Twilio;
+import com.twilio.jwt.client.ClientCapability;
+import com.twilio.jwt.client.IncomingClientScope;
+import com.twilio.jwt.client.OutgoingClientScope;
+import com.twilio.jwt.client.Scope;
 import com.twilio.twiml.Dial;
 import com.twilio.twiml.Event;
 import com.twilio.twiml.Method;
@@ -20,14 +26,18 @@ import com.twilio.twiml.Redirect;
 import com.twilio.twiml.Say;
 import com.twilio.twiml.VoiceResponse;
 
+import spark.ModelAndView;
 import spark.Spark;
+import spark.template.thymeleaf.ThymeleafTemplateEngine;
 
 public class TwilioUtility {
 
 	private final static String PROPERTY_FILE = "twilio.properties";
+	private final static String CLIENT_NAME = "oto-agent";
 
 	private String accountSID;
 	private String authToken;
+	private String applicationSID;
 	private String agentNumber;
 	private String callerId;
 	private String ipAddress;
@@ -38,6 +48,7 @@ public class TwilioUtility {
 
 	public TwilioUtility() {
 		Path path = Paths.get(PROPERTY_FILE);
+		Spark.staticFileLocation("/public");
 
 		if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
 			System.err.println("Missing twilio.properties file. Exiting application ...");
@@ -51,6 +62,7 @@ public class TwilioUtility {
 
 			this.accountSID = properties.getProperty("account_sid");
 			this.authToken = properties.getProperty("auth_token");
+			this.applicationSID = properties.getProperty("application_sid");
 			this.agentNumber = properties.getProperty("agent_number");
 			this.callerId = properties.getProperty("caller_id");
 			this.ipAddress = properties.getProperty("ip_address");
@@ -66,6 +78,8 @@ public class TwilioUtility {
 		TwilioServer server = new TwilioServer(this.agentNumber, this.callerId, this.ipAddress, this.callbackUrl,
 				this.port);
 		server.listen();
+		TwilioClient client = new TwilioClient(this.accountSID, this.authToken, this.applicationSID, CLIENT_NAME);
+		client.listen();
 	}
 
 	public String getAccountSID() {
@@ -84,6 +98,30 @@ public class TwilioUtility {
 	 */
 	public void registerObserver(MessageObserver observer) {
 		this.messageObservers.add(observer);
+	}
+
+	private class TwilioClient {
+
+		private static final String LISTEN_PATH = "/listen";
+
+		private List<Scope> scopes;
+
+		private TwilioClient(String accountSID, String authToken, String applicationSID, String clientName) {
+			scopes = new ArrayList<>();
+			scopes.add(new OutgoingClientScope.Builder(applicationSID).build());
+			scopes.add(new IncomingClientScope(clientName));
+		}
+
+		private void listen() {
+			ClientCapability capability = new ClientCapability.Builder(accountSID, authToken).scopes(scopes).build();
+			String token = capability.toJwt();
+
+			Map<String, String> map = new HashMap<>();
+			map.put("token", token);
+
+			Spark.get(LISTEN_PATH, (request, response) -> new ModelAndView(map, "index"),
+					new ThymeleafTemplateEngine());
+		}
 	}
 
 	private class TwilioServer {
